@@ -5,8 +5,44 @@ import Comment from './comment';
 import {postComment} from '../server'
 import {unlikeFeedItem} from '../server'
 import {likeFeedItem} from '../server'
+import {likeCommentItem} from '../server'
+import {unlikeCommentItem} from '../server'
+
 
 export default class FeedItem extends React.Component {
+constructor(props){
+  super(props);
+  this.state = props.data;
+}
+
+handleCommentClick(clickEvent, commentId, hasLiked) {
+ // Stop the event from propagating up the DOM tree, since we handle it here.
+ // Also prevents the link click from causing the page to scroll to the top.
+ clickEvent.preventDefault();
+ // 0 represents the 'main mouse button' -- typically a left click
+ // https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button
+ if (clickEvent.button === 0) {
+   // Callback function for both the like and unlike cases.
+   var callbackFunction = (updatedComments) => {
+     // setState will overwrite the 'likeCounter' field on the current
+     // state, and will keep the other fields in-tact.
+     // This is called a shallow merge:
+     // https://facebook.github.io/react/docs/component-api.html#setstate
+     this.setState({comments: updatedComments});
+   };
+
+   if (hasLiked) {
+     // User clicked 'unlike' button.
+     unlikeCommentItem(this.state._id, commentId, 4, callbackFunction);
+   } else {
+     // User clicked 'like' button.
+     likeCommentItem(this.state._id, commentId, 4, callbackFunction);
+   }
+ }
+}
+
+
+
   handleLikeClick(clickEvent) {
     // Stop the event from propagating up the DOM tree, since we handle it here.
     // Also prevents the link click from causing the page to scroll to the top.
@@ -33,6 +69,15 @@ export default class FeedItem extends React.Component {
     }
   }
 
+  handleCommentPost(commentText) {
+    // Post a comment as user ID 4, which is our mock user!
+    postComment(this.state._id, 4, commentText, (updatedFeedItem) => {
+      // Update our state to trigger a re-render.
+      this.setState(updatedFeedItem);
+    });
+  }
+
+
   /**
    * Returns 'true' if the user liked the item.
    * Returns 'false' if the user has not liked the item.
@@ -51,49 +96,33 @@ export default class FeedItem extends React.Component {
     return liked;
   }
 
-  constructor(props) {
-    super(props);
-    // The FeedItem's initial state is what the Feed passed to us.
-    this.state = props.data;
-  }
-
-  handleCommentPost(commentText) {
-    // Post a comment as user ID 4, which is our mock user!
-    postComment(this.state._id, 4, commentText, (updatedFeedItem) => {
-      // Update our state to trigger a re-render.
-      this.setState(updatedFeedItem);
-    });
-  }
-
   render() {
     var likeButtonText = "Like";
-if (this.didUserLike()) {
-  likeButtonText = "Unlike";
-}
-// Skipping the first part of this method, which is unchanged.
-// The rest of this method is unchanged
-
-
+    if (this.didUserLike()) {
+      likeButtonText = "Unlike";
+    }
     var data = this.state;
     var contents;
     switch(data.type) {
       case "statusUpdate":
-        // Create a StatusUpdate. Dynamically created React component: needs a key.
-        // Keys only need to be unique among *siblings*, so we can re-use the
-        // same key as the FeedItem.
-        contents = (
-          <StatusUpdate key={data._id} author={data.contents.author} postDate={data.contents.postDate} location={data.contents.location}>
-            {data.contents.contents.split("\n").map((line, i) => {
-  // Note: 'i' is the index of line in data.contents.contents.
-  return (
-    <p key={"line" + i}>{line}</p>
-  );
-})}
-          </StatusUpdate>
-        );
-        break;
+      // Create a StatusUpdate. Dynamically created React component: needs a key.
+      // Keys only need to be unique among *siblings*, so we can re-use the
+      // same key as the FeedItem.
+      contents = (
+        <StatusUpdate key={data._id} author={data.contents.author} postDate={data.contents.postDate} location={data.contents.location}>
+          {data.contents.contents.split("\n").map((line, i) => {
+            // Note: 'i' is the index of line in data.contents.contents.
+            return (
+              <p key={"line" + i}>{line}</p>
+            );
+          })}
+
+
+        </StatusUpdate>
+      );
+      break;
       default:
-        throw new Error("Unknown FeedItem: " + data.type);
+      throw new Error("Unknown FeedItem: " + data.type);
     }
 
     return (
@@ -106,14 +135,14 @@ if (this.didUserLike()) {
               <ul className="list-inline">
                 <li>
                   <a href="#" onClick={(e) => this.handleLikeClick(e)}>
-                    <span className="glyphicon glyphicon-thumbs-up"></span> {likeButtonText}
-                  </a>
+                  <span className="glyphicon glyphicon-thumbs-up"></span> {likeButtonText}
+                </a>
                 </li>
                 <li>
-                <a href="#"><span className="glyphicon glyphicon-comment"></span> Comment</a>
+                  <a href="#"><span className="glyphicon glyphicon-comment"></span> Comment</a>
                 </li>
                 <li>
-                <a href="#"><span className="glyphicon glyphicon-share-alt"></span> Share</a>
+                  <a href="#"><span className="glyphicon glyphicon-share-alt"></span> Share</a>
                 </li>
               </ul>
             </div>
@@ -122,20 +151,23 @@ if (this.didUserLike()) {
         <div className="panel-footer">
           <div className="row">
             <div className="col-md-12">
-              <a href="#">{data.likeCounter.length} people</a> like this
+              <a href="#">{ data.likeCounter.length } people</a> like this
+              </div>
             </div>
+            <hr />
+            <CommentThread onPost={(commentText) => this.handleCommentPost(commentText)}>
+              {
+                data.comments.map((comment, i) => {
+                  // i is comment's index in comments array
+                  return (
+                    <Comment handleClick={(e, bool) => this.handleCommentClick(e, i, bool)} likeCount={comment.likeCounter} key={i}
+                      author={comment.author} postDate={comment.postDate}>{comment.contents}</Comment>
+                  );
+                })
+              }
+            </CommentThread>
           </div>
-          <hr />
-          <CommentThread onPost={(commentText) => this.handleCommentPost(commentText)}>
-            { data.comments.map((comment, i) => {
-  // i is comment's index in comments array
-  return (
-    <Comment key={i} author={comment.author} postDate={comment.postDate}>{comment.contents}</Comment>
-  );
-}) }
-          </CommentThread>
         </div>
-      </div>
-    )
+      )
+    }
   }
-}
