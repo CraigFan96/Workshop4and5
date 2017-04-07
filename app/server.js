@@ -64,8 +64,8 @@ export function postStatusUpdate(user, location, contents, cb) {
   var time = new Date().getTime();
   // The new status update. The database will assign the ID for us.
   var newStatusUpdate = {
-    "likeCounter": [],
     "type": "statusUpdate",
+    "likeCounter": [],
     "contents": {
       "author": user,
       "postDate": time,
@@ -103,8 +103,8 @@ export function postComment(feedItemId, author, contents, cb) {
   // document in the database.
   var feedItem = readDocument('feedItems', feedItemId);
   feedItem.comments.push({
-    "likeCounter": [],
     "author": author,
+    "likeCounter": [],
     "contents": contents,
     "postDate": new Date().getTime()
   });
